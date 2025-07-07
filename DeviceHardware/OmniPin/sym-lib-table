@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "ESP32")(type "KiCad")(uri "C:/Users/kuruc/Downloads/ESP32-_C3_-MINI-_1-main/esp32-c3-mini-1.kicad_sym")(options "")(descr ""))
+  (lib (name "FPC")(type "KiCad")(uri "C:/Users/kuruc/Downloads/fpc24_05mm/2-1734839-4.kicad_sym")(options "")(descr ""))
+)
