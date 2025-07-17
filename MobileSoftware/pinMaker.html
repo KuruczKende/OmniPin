@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>RGB & Brightness Adjuster</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    canvas { border: 1px solid #ccc; max-width: 100%; }
+    .controls { margin-top: 1em; }
+    .slider-group { margin-bottom: 1em; width: 100%; }
+    label { display: block; margin-bottom: 0.25em; }
+  </style>
+</head>
+<body>
+  <h1>Kép színmanipuláció</h1>
+  <input type="file" id="imageLoader" accept="image/*" /><br><br>
+  <canvas id="imageCanvas" style="max-width: 80vw;" hidden></canvas>
+  
+    <div class="controls">
+      <div class="slider-group">
+        <label for="original"> Show original:</label>
+        <input type="checkbox" id="oribinalCb">
+      </div>
+      <div class="slider-group">
+        <label for="wSlider">Szélesség:</label>
+        <input type="range" id="wSlider" min="1" max="200" value="200" style="width: 70vw;">
+        <input type="number" id="wNumber" min="1" max="200" value="200" style="width: 5vw;">
+      </div>
+      <div class="slider-group">
+        <label for="hSlider">Magasság:</label>
+        <input type="range" id="hSlider" min="1" max="200" value="200" style="width: 70vw;">
+        <input type="number" id="hNumber" min="1" max="200" value="200" style="width: 5vw;">
+      </div>
+      <div class="slider-group">
+        <label for="bcSlider">Háttérszín:</label>
+        <input type="range" id="bcSlider" min="0" max="3" value="0" style="width: 70vw;">
+        <input type="number" id="bcNumber" min="0" max="3" value="0" style="width: 5vw;">
+      </div>
+      <div class="slider-group">
+        <label for="rSlider">R vörös:</label>
+        <input type="range" id="rSlider" min="-255" max="255" value="0" style="width: 70vw;">
+        <input type="number" id="rNumber" min="-255" max="255" value="0" style="width: 5vw;">
+      </div>
+      <div class="slider-group">
+        <label for="gSlider">G zöld:</label>
+        <input type="range" id="gSlider" min="-255" max="255" value="0" style="width: 70vw;">
+        <input type="number" id="gNumber" min="-255" max="255" value="0" style="width: 5vw;">
+      </div>
+      <div class="slider-group">
+        <label for="bSlider">B kék:</label>
+        <input type="range" id="bSlider" min="-255" max="255" value="0" style="width: 70vw;">
+        <input type="number" id="bNumber" min="-255" max="255" value="0" style="width: 5vw;">
+      </div>
+      <div class="slider-group">
+        <label for="brightnessSlider">Fényerő:</label>
+        <input type="range" id="brightnessSlider" min="-100" max="100" value="0" style="width: 70vw;">
+        <input type="number" id="brightnessNumber" min="-100" max="100" value="0" style="width: 5vw;">
+      </div>
+      <div class="slider-group">
+        <label for="ditherCb"> Show dithered:</label>
+        <input type="checkbox" id="ditherCb" checked>
+      </div>
+    </div>
+
+  
+  <canvas id="PinCanvas" width="200" height="200" style="width: 80vw; height: 80vw; image-rendering: pixelated;"></canvas>
+
+  <script>
+    const imageLoader = document.getElementById('imageLoader');
+    const canvas = document.getElementById('imageCanvas');
+    const ctx = canvas.getContext('2d');
+    const pinCanvas = document.getElementById('PinCanvas');
+    const pinCtx = pinCanvas.getContext('2d');
+    
+    const controls = [
+      { id: 'bc' },
+      { id: 'r' },
+      { id: 'g' },
+      { id: 'b' },
+      { id: 'brightness' }
+    ];
+    const scale = [
+      { id: 'w' },
+      { id: 'h' }
+    ];
+
+    let originalImage = null;
+	let resized = null;
+	let recolored = null;
+    
+    const wSlider = document.getElementById('wSlider');
+    const hSlider = document.getElementById('hSlider');
+    const bcSlider = document.getElementById('bcSlider');
+    const rSlider = document.getElementById('rSlider');
+    const gSlider = document.getElementById('gSlider');
+    const bSlider = document.getElementById('bSlider');
+    const brightnessSlider = document.getElementById('brightnessSlider');
+    const originalCheckBox = document.getElementById('oribinalCb');
+    const ditherCheckBox = document.getElementById('ditherCb');
+    
+    // 4 szín: fekete, kék, fehér, cián
+    let colors = new Uint8Array([
+        0, 0, 0, 255,       // fekete
+        255, 255, 255, 255, // fehér
+        255, 255, 0, 255,   // sárga
+        255, 0, 0, 255      // piros
+    ]);
+    
+    function updateValues() {
+      controls.forEach(({ id }) => {
+        const slider = document.getElementById(`${id}Slider`);
+        const span = document.getElementById(`${id}Val`);
+        if (span) span.textContent = slider.value;
+      });
+    }
+
+    function updateCanvas() {
+      if (originalImage) {
+        canvas.width = originalImage.width;
+        canvas.height = originalImage.height;
+        ctx.drawImage(originalImage, 0, 0);
+		updateScale();
+      }
+    }
+	function updateScale(){
+      if (!originalImage) return;
+        const width = parseInt(wSlider.value);
+        const height = parseInt(hSlider.value);
+		resized =  new Uint8ClampedArray(width * height * 4).fill(0);
+	    recolored =  new Uint8ClampedArray(width * height * 4).fill(0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+		ResizeImage(imageData.data,canvas.width, canvas.height,4,resized,width,height);
+		updatePinCanvas();
+	}
+    function applyAdjustments() {
+      const rShift = parseInt(rSlider.value);
+      const gShift = parseInt(gSlider.value);
+      const bShift = parseInt(bSlider.value);
+      const brightnessFactor = 1 + parseInt(brightnessSlider.value) / 100;
+
+      for (let i = 0; i < resized.length; i += 4) {
+        recolored[i + 0] = (resized[i + 0] + rShift) * brightnessFactor; // R
+        recolored[i + 1] = (resized[i + 1] + gShift) * brightnessFactor; // G
+        recolored[i + 2] = (resized[i + 2] + bShift) * brightnessFactor; // B
+        recolored[i + 3] = resized[i + 3];
+      }
+    }
+    
+    function updatePinCanvas() {
+      if (!originalImage) return;
+	  applyAdjustments();
+	  
+      const width = parseInt(wSlider.value);
+      const height = parseInt(hSlider.value);
+
+      if(ditherCheckBox.checked){
+		DitherImage(recolored, width, height, 4, colors, 4);
+	  }
+
+      let bgColOffset = parseInt(bcSlider.value) * 4;
+	  pinCtx.fillStyle = `rgb(${colors[0 + bgColOffset]}, ${colors[1 + bgColOffset]}, ${colors[2 + bgColOffset]})`;
+      pinCtx.fillRect(0, 0, pinCanvas.width, pinCanvas.height);
+      const newImageData = new ImageData(recolored, width, height);
+      pinCtx.putImageData(newImageData, (200-width)/2, (200-height)/2);
+    }
+    
+    function ResizeImage(inPixels, inWidth, inHeight, BytesPerPixel, outPixels, outWidth, outHeight) {
+        let outP = new Float32Array(outWidth*outHeight*BytesPerPixel).fill(0.0);
+        for (let ox = 0; ox < outWidth; ox++) {
+            let sox = (ox + 0.0) / outWidth; // start
+            let eox = (ox + 1.0) / outWidth; // end
+
+            for (let ix = 0; ix < inWidth; ix++) {
+                let xoverlap = 0.0;
+                let six = (ix + 0.0) / inWidth; // start
+                let eix = (ix + 1.0) / inWidth; // end
+
+                let sx = Math.max(sox, six);
+                let ex = Math.min(eox, eix);
+                if (sx < ex) xoverlap = (ex - sx) * outWidth;
+
+                if (xoverlap > 0.0) {
+                    for (let oy = 0; oy < outHeight; oy++) {
+                        let soy = (oy + 0.0) / outHeight; // start
+                        let eoy = (oy + 1.0) / outHeight; // end
+
+                        for (let iy = 0; iy < inHeight; iy++) {
+                            let yoverlap = 0.0;
+                            let siy = (iy + 0.0) / inHeight; // start
+                            let eiy = (iy + 1.0) / inHeight; // end
+
+                            let sy = Math.max(soy, siy);
+                            let ey = Math.min(eoy, eiy);
+                            if (sy < ey) yoverlap = (ey - sy) * outHeight;
+
+                            if (yoverlap > 0.0) {
+                                let hatas = xoverlap * yoverlap;
+                                for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+                                    outP[(ox + oy * outWidth) * BytesPerPixel + bpp] += hatas * (inPixels[(ix + iy * inWidth) * BytesPerPixel + bpp]);
+                            }
+                        }
+                    }
+                }
+            }
+            for (let oy = 0; oy < outHeight; oy++) {
+                for (let bpp = 0.0; bpp < BytesPerPixel; bpp++){
+                    outPixels[(ox + oy * outWidth) * BytesPerPixel + bpp] = Math.round(outP[(ox + oy * outWidth) * BytesPerPixel + bpp]);
+                }
+            }
+        }
+    }
+
+    function chooseBest(pixel, errPixel, BytesPerPixel, colors, numberOfColors) {
+        for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+            errPixel[bpp] += pixel[bpp];
+
+        let best = -1;
+        let bestError = 0;
+        for (let i = 0; i < numberOfColors; i++) {
+            let error = 0;
+            for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+                error += Math.abs(errPixel[bpp] - colors[i * BytesPerPixel + bpp]);
+            if ((error < bestError) || (best === -1)) {
+                bestError = error;
+                best = i;
+            }
+        }
+
+        for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+            errPixel[bpp] = (pixel[bpp] - colors[best * BytesPerPixel + bpp]);
+
+        for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+            pixel[bpp] = colors[best * BytesPerPixel + bpp];
+    }
+
+    function DitherImage(pixels, Width, Height, BytesPerPixel, colors, numberOfColors) {
+        const errPix = new Int16Array(Width * Height * BytesPerPixel).fill(0);
+        for (let x = 0; x < Width; x++) {
+            for (let y = 0; y < Height; y++) {
+                let idx = (x + y * Width) * BytesPerPixel;
+                chooseBest(pixels.subarray(idx, idx + BytesPerPixel), errPix.subarray(idx, idx + BytesPerPixel), BytesPerPixel, colors, numberOfColors);
+                if (y < Height - 1) {
+                    if (x > 0) {
+                        for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+                            errPix[(x - 1 + y * Width + Width) * BytesPerPixel + bpp] += (errPix[idx + bpp] * 3) / 16;
+                    }
+                    for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+                        errPix[(x + y * Width + Width) * BytesPerPixel + bpp] += (errPix[idx + bpp] * 5) / 16;
+                    if (x < Width - 1) {
+                        for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+                            errPix[(x + 1 + y * Width + Width) * BytesPerPixel + bpp] += (errPix[idx + bpp] * 1) / 16;
+                    }
+                }
+                if (x < Width - 1) {
+                    for (let bpp = 0; bpp < BytesPerPixel; bpp++)
+                        errPix[(x + 1 + y * Width) * BytesPerPixel + bpp] += (errPix[idx + bpp] * 7) / 16;
+                }
+            }
+        }
+    }
+	
+    originalCheckBox.addEventListener('change', function(e) {
+      canvas.hidden = !originalCheckBox.checked;
+    });
+
+    ditherCheckBox.addEventListener('change', function(e) {
+		updatePinCanvas();
+    });
+
+    imageLoader.addEventListener('change', function(e) {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          originalImage = img;
+          updateCanvas();
+        }
+        img.src = event.target.result;
+      }
+      reader.readAsDataURL(e.target.files[0]);
+    });
+    
+    controls.forEach(({ id }) => {
+      const slider = document.getElementById(`${id}Slider`);
+      const number = document.getElementById(`${id}Number`);
+
+      // Slider → Number
+      slider.addEventListener('input', () => {
+        number.value = slider.value;
+        updateValues();
+		updatePinCanvas();
+      });
+
+      // Number → Slider
+      number.addEventListener('input', () => {
+        let val = parseInt(number.value);
+        if (isNaN(val)) val = 0;
+        val = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), val));
+        slider.value = val;
+        number.value = val;
+        updateValues();
+		updatePinCanvas();
+      });
+    });
+	
+    scale.forEach(({ id }) => {
+      const slider = document.getElementById(`${id}Slider`);
+      const number = document.getElementById(`${id}Number`);
+
+      // Slider → Number
+      slider.addEventListener('input', () => {
+        number.value = slider.value;
+        updateValues();
+		updateScale();
+      });
+
+      // Number → Slider
+      number.addEventListener('input', () => {
+        let val = parseInt(number.value);
+        if (isNaN(val)) val = 0;
+        val = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), val));
+        slider.value = val;
+        number.value = val;
+        updateValues();
+		updateScale();
+      });
+    });
+	
+	function setText(){
+			let bytev=0;
+			let str = "";
+            if(!ditherCheckBox.checked){
+			  const width = parseInt(wSlider.value);
+			  const height = parseInt(hSlider.value);
+	          DitherImage(recolored, width, height, 4, colors, 4);
+			  const newImageData = new ImageData(recolored, width, height);
+			  pinCtx.putImageData(newImageData, (200-width)/2, (200-height)/2);
+	        }
+			ditherCheckBox.checked = true;
+			let data = pinCtx.getImageData(0, 0, 200, 200).data;
+			console.log(data);
+		  let offset=64;
+		  for (let i = 0; i < data.length; i += 4) {
+			let col=-1;
+			for(let j=0;(j<colors.length) && (col == -1);j+=4){
+			  let jo=true;
+			  for(let k=0;(k<4)&&(jo);k++){
+				if(data[i+k]!=colors[j+k])jo=false;
+			  }
+			  if(jo){
+				col = j/4;
+			  }
+			}
+			if(col==-1){
+			  console.error("Error");
+			}
+			else{
+			  bytev = bytev + col*offset;
+			  if(offset==1){
+			    //end of byte
+				if(bytev<16)str+="0";
+				str+=bytev.toString(16);
+				offset=64;
+				bytev=0;
+			  }
+			  else{
+				offset=offset/4;
+			  }
+			}
+		  }
+		  console.log(str);
+		if (window.AppInventor) {
+			window.AppInventor.setWebViewString(str);
+		}
+	}
+
+    updateValues();
+  </script>
+</body>
+</html>
