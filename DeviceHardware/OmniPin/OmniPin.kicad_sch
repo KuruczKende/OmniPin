@@ -11994,7 +11994,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "SW_BT:SW_SPST_B3U-1000P"
+		(property "Footprint" "SW_BT:SW_SPST_B3U-3000P-B"
 			(at 93.98 127 0)
 			(effects
 				(font
@@ -12842,7 +12842,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "SW_BT:SW_SPST_B3U-1000P"
+		(property "Footprint" "SW_BT:SW_SPST_B3U-3000P-B"
 			(at 19.05 71.12 0)
 			(effects
 				(font

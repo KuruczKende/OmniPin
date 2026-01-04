@@ -139,9 +139,8 @@ bool DATA_Init(bool cold){
     Serial.println("SPIFFS Mount Failed");
     return false;
   }
-  bool ret=true;
-  if(cold)ret = DATA_LoadDataPersistent();
-  return ret;
+  if(cold)return DATA_LoadDataPersistent();
+  return true;
 }
 static bool readFile(fs::FS &fs, const char *path, uint8_t *buffer, size_t len) {
   if(buffer == nullptr) return false;
